@@ -1,0 +1,15 @@
+[Unit]
+Description=Kira Telegram Bot
+After=network.target kira-agent.service
+
+[Service]
+Type=simple
+User=kira
+WorkingDirectory=/home/kira/kira
+EnvironmentFile=/home/kira/kira/.env
+ExecStart=/home/kira/kira/.venv/bin/python -m telegram_bot.bot
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

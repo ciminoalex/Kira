@@ -1,0 +1,15 @@
+[Unit]
+Description=Kira AI Agent (Agno)
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=kira
+WorkingDirectory=/home/kira/kira
+EnvironmentFile=/home/kira/kira/.env
+ExecStart=/home/kira/kira/.venv/bin/python -m agent.main
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
