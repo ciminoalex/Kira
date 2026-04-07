@@ -10,11 +10,13 @@ Gestisce:
 
 from __future__ import annotations
 
+import asyncio
 import logging
+from typing import AsyncIterator
 
 from livekit.agents import AutoSubscribe, JobContext, WorkerOptions, cli
+from livekit.agents.llm import LLM, ChatContext, ChatChunk, Choice, ChoiceDelta
 from livekit.agents.voice import AgentSession
-from livekit.agents.llm import LLMNode
 from livekit.plugins import deepgram, elevenlabs, silero
 
 from agent.config import settings
@@ -22,25 +24,54 @@ from agent.main import handle_request, init_agent, shutdown_agent
 
 logger = logging.getLogger(__name__)
 
-# Flag per inizializzazione one-time
 _initialized = False
 
 
-class KiraLLMNode(LLMNode):
-    """Custom LLM node che usa il pipeline Kira (routing + agente Agno)."""
+class KiraLLM(LLM):
+    """Custom LLM adapter che usa il pipeline Kira (routing + agente Agno)."""
 
-    async def run(self, text: str) -> str:
+    async def chat(self, *, chat_ctx: ChatContext, **kwargs) -> "KiraChatStream":
+        # Estrai l'ultimo messaggio utente dal contesto
+        last_message = ""
+        for msg in reversed(chat_ctx.messages):
+            if msg.role == "user" and msg.content:
+                last_message = msg.content
+                break
+
+        return KiraChatStream(last_message)
+
+
+class KiraChatStream:
+    """Stream di risposta che wrappa il pipeline Kira."""
+
+    def __init__(self, user_message: str):
+        self._user_message = user_message
+        self._task = None
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *args):
+        pass
+
+    async def __aiter__(self) -> AsyncIterator[ChatChunk]:
         try:
-            return await handle_request(text, user_id="alessandro")
+            response = await handle_request(self._user_message, user_id="alessandro")
         except Exception:
             logger.exception("Errore nel processing LLM")
-            return "Mi dispiace, ho avuto un problema. Puoi ripetere?"
+            response = "Mi dispiace, ho avuto un problema. Puoi ripetere?"
+
+        yield ChatChunk(
+            choices=[Choice(delta=ChoiceDelta(content=response, role="assistant"))]
+        )
+
+    async def aclose(self):
+        pass
 
 
 async def entrypoint(ctx: JobContext):
     global _initialized
 
-    # Inizializza l'agente una sola volta
     if not _initialized:
         await init_agent()
         _initialized = True
@@ -60,12 +91,10 @@ async def entrypoint(ctx: JobContext):
             min_silence_duration=0.5,
             speech_threshold=0.5,
         ),
-        llm=KiraLLMNode(),
+        llm=KiraLLM(),
     )
 
     await session.start(room=ctx.room)
-
-    # Messaggio di benvenuto
     await session.say("Ciao Alessandro, sono Kira. Come posso aiutarti?")
 
 
