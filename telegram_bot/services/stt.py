@@ -7,8 +7,6 @@ from __future__ import annotations
 
 import logging
 
-from deepgram import DeepgramClient, PrerecordedOptions
-
 from agent.config import settings
 
 logger = logging.getLogger(__name__)
@@ -25,14 +23,24 @@ async def transcribe_voice(audio_bytes: bytes, language: str = "it") -> str:
     Returns:
         Testo trascritto
     """
+    if not settings.DEEPGRAM_API_KEY:
+        logger.warning("DEEPGRAM_API_KEY non configurata, trascrizione non disponibile")
+        return ""
+
+    try:
+        from deepgram import DeepgramClient
+    except ImportError:
+        logger.error("deepgram SDK non installato")
+        return ""
+
     client = DeepgramClient(settings.DEEPGRAM_API_KEY)
 
-    options = PrerecordedOptions(
-        model="nova-2",
-        language=language,
-        smart_format=True,
-        punctuate=True,
-    )
+    options = {
+        "model": "nova-2",
+        "language": language,
+        "smart_format": True,
+        "punctuate": True,
+    }
 
     source = {"buffer": audio_bytes, "mimetype": "audio/ogg"}
 

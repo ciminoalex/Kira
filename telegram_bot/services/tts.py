@@ -7,8 +7,6 @@ from __future__ import annotations
 import logging
 from io import BytesIO
 
-from elevenlabs import AsyncElevenLabs
-
 from agent.config import settings
 
 logger = logging.getLogger(__name__)
@@ -24,6 +22,20 @@ async def synthesize_speech(text: str) -> BytesIO:
     Returns:
         BytesIO contenente l'audio in formato MP3
     """
+    if not settings.ELEVENLABS_API_KEY:
+        logger.warning("ELEVENLABS_API_KEY non configurata, TTS non disponibile")
+        empty = BytesIO()
+        empty.name = "error.mp3"
+        return empty
+
+    try:
+        from elevenlabs import AsyncElevenLabs
+    except ImportError:
+        logger.error("elevenlabs SDK non installato")
+        empty = BytesIO()
+        empty.name = "error.mp3"
+        return empty
+
     client = AsyncElevenLabs(api_key=settings.ELEVENLABS_API_KEY)
 
     try:
