@@ -62,20 +62,6 @@ async def check_postgres() -> ServiceStatus:
         return ServiceStatus("postgres", False, error=str(e))
 
 
-async def check_ollama() -> ServiceStatus:
-    """Verifica connessione Ollama (modello locale)."""
-    try:
-        start = asyncio.get_event_loop().time()
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(
-                f"{settings.OLLAMA_BASE_URL}/api/tags", timeout=3.0
-            )
-            latency = (asyncio.get_event_loop().time() - start) * 1000
-            return ServiceStatus("ollama", resp.status_code == 200, latency)
-    except Exception as e:
-        return ServiceStatus("ollama", False, error=str(e))
-
-
 async def check_supermemory() -> ServiceStatus:
     """Verifica connessione Supermemory."""
     if not settings.SUPERMEMORY_API_KEY:
@@ -113,7 +99,6 @@ async def run_health_checks() -> HealthReport:
     """Esegue tutti gli health check in parallelo."""
     checks = await asyncio.gather(
         check_postgres(),
-        check_ollama(),
         check_supermemory(),
         check_pc_filesystem(),
         return_exceptions=True,

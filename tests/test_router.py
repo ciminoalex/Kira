@@ -59,17 +59,10 @@ async def test_classify_strategy_as_expert():
 
 @pytest.mark.asyncio
 async def test_classify_ambiguous_falls_back():
-    """Messaggi ambigui devono fare fallback su ADVANCED se Ollama non è disponibile."""
-    with patch("agent.router.complexity_classifier.httpx.AsyncClient") as mock:
-        mock_client = AsyncMock()
-        mock_client.post.side_effect = Exception("Connection refused")
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock()
-        mock.return_value = mock_client
-
-        result = await classify_complexity("Che ne pensi di questa idea?")
-        assert result.tier == ModelTier.ADVANCED
-        assert "Fallback" in result.reason
+    """Messaggi ambigui devono fare fallback su ADVANCED."""
+    result = await classify_complexity("Che ne pensi di questa idea?")
+    assert result.tier == ModelTier.ADVANCED
+    assert "fallback" in result.reason.lower()
 
 
 def test_get_model_for_code_tier():

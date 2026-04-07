@@ -8,8 +8,7 @@ from unittest.mock import patch, AsyncMock
 from agent.health.checks import (
     ServiceStatus,
     HealthReport,
-    check_ollama,
-    run_health_checks,
+    check_supermemory,
 )
 
 
@@ -18,13 +17,13 @@ def test_health_report_healthy():
     report = HealthReport(
         services=[
             ServiceStatus("postgres", True, 5.0),
-            ServiceStatus("ollama", False, error="Non raggiungibile"),
+            ServiceStatus("supermemory", False, error="Non configurato"),
         ]
     )
     d = report.to_dict()
     assert d["status"] == "healthy"
     assert d["services"]["postgres"]["healthy"]
-    assert not d["services"]["ollama"]["healthy"]
+    assert not d["services"]["supermemory"]["healthy"]
 
 
 def test_health_report_degraded():
@@ -33,7 +32,7 @@ def test_health_report_degraded():
         overall=False,
         services=[
             ServiceStatus("postgres", False, error="Connection refused"),
-            ServiceStatus("ollama", True, 10.0),
+            ServiceStatus("supermemory", True, 10.0),
         ],
     )
     d = report.to_dict()
@@ -49,15 +48,10 @@ def test_service_status_without_error():
 
 
 @pytest.mark.asyncio
-async def test_check_ollama_unreachable():
-    """Se Ollama non è raggiungibile, deve restituire unhealthy."""
-    with patch("agent.health.checks.httpx.AsyncClient") as mock:
-        mock_client = AsyncMock()
-        mock_client.get.side_effect = Exception("Connection refused")
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock()
-        mock.return_value = mock_client
-
-        result = await check_ollama()
+async def test_check_supermemory_not_configured():
+    """Se Supermemory non è configurato, deve restituire unhealthy."""
+    with patch("agent.health.checks.settings") as mock_settings:
+        mock_settings.SUPERMEMORY_API_KEY = ""
+        result = await check_supermemory()
         assert not result.healthy
-        assert result.error is not None
+        assert "Non configurato" in result.error

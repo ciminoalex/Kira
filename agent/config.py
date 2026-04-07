@@ -49,7 +49,6 @@ class Settings(BaseSettings):
     REMINDER_MINUTES_BEFORE: int = 15
 
     # Model Routing
-    OLLAMA_BASE_URL: str = "http://localhost:11434"
     DEFAULT_MODEL_TIER: str = "advanced"
 
     # Claude Code

@@ -5,14 +5,13 @@ Registry dei modelli disponibili con configurazione e fallback chain.
 from __future__ import annotations
 
 from agno.models.anthropic import Claude
-from agno.models.ollama import Ollama
 
 from agent.router.complexity_classifier import ModelTier
 
 
 MODEL_CONFIG: dict[ModelTier, dict] = {
     ModelTier.FAST: {
-        "primary": Ollama(id="gemma3:27b"),
+        "primary": Claude(id="claude-haiku-4-5-20251001"),
         "fallback": Claude(id="claude-haiku-4-5-20251001"),
         "max_tokens": 512,
         "description": "Risposte rapide, small talk, conferme",
