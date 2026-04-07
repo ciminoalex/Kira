@@ -1,0 +1,21 @@
+# Caddy reverse proxy configuration per Kira
+# Sostituire kira.example.com con il dominio reale
+
+kira.example.com {
+    # Frontend Next.js
+    reverse_proxy localhost:3000
+
+    # LiveKit WebSocket e WHIP/WHEP
+    @livekit {
+        path /rtc*
+        path /livekit*
+    }
+    reverse_proxy @livekit localhost:7880
+
+    # Headers di sicurezza
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        Referrer-Policy strict-origin-when-cross-origin
+    }
+}

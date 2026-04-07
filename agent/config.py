@@ -57,6 +57,22 @@ class Settings(BaseSettings):
     CLAUDE_CODE_MAX_BUDGET: float = 5.0
     CLAUDE_CODE_TIMEOUT: int = 300
 
+    # Microsoft 365
+    MS365_CLIENT_ID: str = ""
+    MS365_TENANT_ID: str = ""
+
+    # LiveKit
+    LIVEKIT_URL: str = ""
+    LIVEKIT_API_KEY: str = ""
+    LIVEKIT_API_SECRET: str = ""
+
+    # PC Fisso (Tailscale)
+    PC_TAILSCALE_IP: str = ""
+    PC_FILESYSTEM_PORT: int = 8765
+
+    # Frontend Auth
+    FRONTEND_AUTH_PASSWORD: str = ""
+
     # Telemetria
     AGNO_TELEMETRY: bool = False
 

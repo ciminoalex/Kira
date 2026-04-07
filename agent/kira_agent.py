@@ -69,6 +69,22 @@ def _build_mcp_tools() -> list[MCPTools]:
             )
         )
 
+    # Microsoft 365 MCP (Outlook mail + calendar + contacts)
+    if settings.MS365_CLIENT_ID:
+        mcp_tools.append(
+            MCPTools(
+                command="npx",
+                args=[
+                    "-y", "@softeria/ms-365-mcp-server",
+                    "--preset", "email,calendar,contacts",
+                ],
+                env={
+                    "MS365_MCP_CLIENT_ID": settings.MS365_CLIENT_ID,
+                    "MS365_MCP_TENANT_ID": settings.MS365_TENANT_ID,
+                },
+            )
+        )
+
     # Web Search (Tavily)
     if settings.TAVILY_API_KEY:
         mcp_tools.append(
@@ -78,6 +94,21 @@ def _build_mcp_tools() -> list[MCPTools]:
                 env={"TAVILY_API_KEY": settings.TAVILY_API_KEY},
             )
         )
+
+    # Filesystem PC (via Tailscale, opzionale)
+    if settings.PC_TAILSCALE_IP:
+        import httpx as _httpx
+
+        pc_url = f"http://{settings.PC_TAILSCALE_IP}:{settings.PC_FILESYSTEM_PORT}"
+        try:
+            r = _httpx.get(f"{pc_url}/health", timeout=2)
+            if r.status_code == 200:
+                mcp_tools.append(
+                    MCPTools(url=pc_url, transport="streamable-http")
+                )
+                logger.info("PC filesystem connesso via Tailscale")
+        except Exception:
+            logger.info("PC fisso non raggiungibile, proseguo senza filesystem")
 
     return mcp_tools
 

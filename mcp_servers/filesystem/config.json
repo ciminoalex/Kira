@@ -1,0 +1,17 @@
+{
+  "command": "npx",
+  "args": ["-y", "@anthropic/mcp-filesystem-server"],
+  "env": {
+    "MCP_FS_ROOT": "~/progetti",
+    "MCP_FS_ALLOWED_PATTERNS": "**/*.{cs,py,sql,md,txt,json,xml,config,yaml,yml}"
+  },
+  "description": "MCP Filesystem Server sul PC fisso di Alessandro. Espone la cartella ~/progetti con file di codice filtrati.",
+  "setup": {
+    "pc_command": "npx -y @anthropic/mcp-filesystem-server --root ~/progetti --allowed-patterns '**/*.{cs,py,sql,md,txt,json,xml,config}' --port 8765",
+    "prerequisites": [
+      "Node.js >= 18 installato sul PC fisso",
+      "Tailscale configurato e connesso",
+      "Porta 8765 aperta nel firewall locale"
+    ]
+  }
+}

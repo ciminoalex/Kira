@@ -1,0 +1,15 @@
+[Unit]
+Description=Kira Voice Agent (LiveKit Worker)
+After=network.target livekit.service
+
+[Service]
+Type=simple
+User=kira
+WorkingDirectory=/home/kira/kira
+EnvironmentFile=/home/kira/kira/.env
+ExecStart=/home/kira/kira/.venv/bin/python -m voice.worker
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

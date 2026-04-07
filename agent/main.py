@@ -83,10 +83,9 @@ def get_agent():
 
 async def main():
     """Entry point standalone per test dell'agente."""
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
-    )
+    from agent.logging_config import setup_logging
+
+    setup_logging(level="INFO", json_format=False)
 
     logger.info("Avvio Kira...")
     await init_agent()
@@ -94,6 +93,15 @@ async def main():
     # Avvia scheduler
     setup_scheduler()
     logger.info("Scheduler avviato")
+
+    # Avvia health check server
+    health_runner = None
+    try:
+        from agent.health.server import start_health_server
+
+        health_runner = await start_health_server(port=8080)
+    except Exception:
+        logger.warning("Health check server non avviato", exc_info=True)
 
     # Mantieni il processo attivo
     stop_event = asyncio.Event()
@@ -111,6 +119,8 @@ async def main():
         await stop_event.wait()
     finally:
         logger.info("Shutdown in corso...")
+        if health_runner:
+            await health_runner.cleanup()
         await shutdown_agent()
         logger.info("Kira spenta.")
 

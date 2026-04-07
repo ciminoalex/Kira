@@ -42,12 +42,45 @@ echo "Per pre-popolare la memoria di Kira:"
 echo "  $PROJECT_DIR/.venv/bin/python -m scripts.seed_memory"
 echo
 
-# 5. Servizi systemd
+# 5. Frontend (opzionale, per interfaccia vocale)
+if [ -d "$PROJECT_DIR/frontend" ]; then
+    echo "Setup frontend..."
+    if command -v npm &> /dev/null; then
+        cd "$PROJECT_DIR/frontend"
+        if [ ! -f ".env.local" ]; then
+            cp .env.local.example .env.local
+            echo "IMPORTANTE: Modifica frontend/.env.local con le credenziali LiveKit!"
+        fi
+        npm install
+        echo "Frontend pronto. Per avviare: cd frontend && npm run build && npm start"
+    else
+        echo "npm non trovato. Installa Node.js >= 18 per il frontend."
+    fi
+    echo
+fi
+
+# 6. Servizi systemd
 echo "Per installare i servizi systemd:"
-echo "  sudo cp $PROJECT_DIR/systemd/kira-agent.service /etc/systemd/system/"
-echo "  sudo cp $PROJECT_DIR/systemd/kira-telegram.service /etc/systemd/system/"
+echo "  sudo cp $PROJECT_DIR/systemd/*.service /etc/systemd/system/"
 echo "  sudo systemctl daemon-reload"
+echo ""
+echo "  # Fase 1: Core + Telegram"
 echo "  sudo systemctl enable --now kira-agent kira-telegram"
+echo ""
+echo "  # Fase 3: Voce (richiede LiveKit)"
+echo "  sudo systemctl enable --now livekit kira-voice"
+echo
+
+# 7. Backup database (cron)
+echo "Per configurare il backup automatico del database:"
+echo "  crontab -e"
+echo "  # Aggiungi: 0 2 * * * $PROJECT_DIR/scripts/backup_db.sh"
+echo
+
+# 8. Tailscale (Fase 4, opzionale)
+echo "Per collegare il PC fisso via Tailscale:"
+echo "  curl -fsSL https://tailscale.com/install.sh | sh"
+echo "  tailscale up"
 echo
 
 echo "=== Setup completato ==="

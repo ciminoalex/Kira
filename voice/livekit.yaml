@@ -1,0 +1,24 @@
+# LiveKit Server Configuration
+# Per deployment su VPS senza Docker
+
+port: 7880
+rtc:
+  port_range_start: 50000
+  port_range_end: 60000
+  tcp_port: 7881
+  use_external_ip: true
+
+keys:
+  # Generare con: livekit-server generate-keys
+  # Inserire qui le chiavi generate
+  devkey: secret
+
+logging:
+  level: info
+
+# TURN server (opzionale, migliora connettività behind NAT)
+# turn:
+#   enabled: true
+#   domain: kira.example.com
+#   tls_port: 5349
+#   udp_port: 3478
