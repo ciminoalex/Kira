@@ -4,6 +4,7 @@ Definizione dell'agente Kira con Agno framework + MCP tools.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from pathlib import Path
 
@@ -177,16 +178,20 @@ async def start_agent_with_mcp() -> tuple[Agent, list[MCPTools]]:
         Tupla (agent, mcp_tools_list) per gestione lifecycle.
     """
     mcp_tools = _build_mcp_tools()
+    connected_tools: list[MCPTools] = []
 
     for tool_server in mcp_tools:
         try:
-            await tool_server.connect()
+            await asyncio.wait_for(tool_server.connect(), timeout=15)
+            connected_tools.append(tool_server)
             logger.info("MCP connesso: %s", tool_server)
+        except asyncio.TimeoutError:
+            logger.warning("MCP timeout (15s), skip: %s", tool_server)
         except Exception:
-            logger.exception("Errore connessione MCP: %s", tool_server)
+            logger.warning("MCP non disponibile, skip: %s", tool_server, exc_info=True)
 
-    agent = create_kira_agent(mcp_tools=mcp_tools)
-    return agent, mcp_tools
+    agent = create_kira_agent(mcp_tools=connected_tools)
+    return agent, connected_tools
 
 
 async def stop_mcp_tools(mcp_tools: list[MCPTools]) -> None:
