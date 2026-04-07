@@ -33,8 +33,8 @@ def _build_mcp_tools() -> list[MCPTools]:
     """Costruisce la lista di MCP tool servers."""
     mcp_tools: list[MCPTools] = []
 
-    # Gmail MCP (mail)
-    if settings.GOOGLE_CLIENT_ID:
+    # Gmail MCP (mail) + Google Calendar MCP
+    if settings.GOOGLE_CLIENT_ID and settings.GOOGLE_CLIENT_SECRET and settings.GOOGLE_REFRESH_TOKEN:
         google_env = {
             "GOOGLE_CLIENT_ID": settings.GOOGLE_CLIENT_ID,
             "GOOGLE_CLIENT_SECRET": settings.GOOGLE_CLIENT_SECRET,
@@ -49,8 +49,6 @@ def _build_mcp_tools() -> list[MCPTools]:
                 )
             )
         )
-
-        # Google Calendar MCP
         mcp_tools.append(
             MCPTools(
                 server_params=StdioServerParameters(
@@ -60,6 +58,8 @@ def _build_mcp_tools() -> list[MCPTools]:
                 )
             )
         )
+    elif settings.GOOGLE_CLIENT_ID:
+        logger.warning("Google MCP: CLIENT_ID presente ma mancano CLIENT_SECRET o REFRESH_TOKEN, skip")
 
     # Supermemory MCP (memory, recall, context)
     if settings.SUPERMEMORY_API_KEY:
@@ -185,10 +185,8 @@ async def start_agent_with_mcp() -> tuple[Agent, list[MCPTools]]:
             await asyncio.wait_for(tool_server.connect(), timeout=15)
             connected_tools.append(tool_server)
             logger.info("MCP connesso: %s", tool_server)
-        except asyncio.TimeoutError:
-            logger.warning("MCP timeout (15s), skip: %s", tool_server)
-        except Exception:
-            logger.warning("MCP non disponibile, skip: %s", tool_server, exc_info=True)
+        except BaseException as e:
+            logger.warning("MCP non disponibile (%s), skip: %s", type(e).__name__, tool_server)
 
     agent = create_kira_agent(mcp_tools=connected_tools)
     return agent, connected_tools
