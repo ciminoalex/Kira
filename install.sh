@@ -129,6 +129,20 @@ if [ -z "$PYTHON_CMD" ]; then
     exit 1
 fi
 
+# Verifica python3-venv
+if ! "$PYTHON_CMD" -m venv --help &>/dev/null 2>&1; then
+    PY_SHORT=$("$PYTHON_CMD" --version 2>&1 | grep -oP '\d+\.\d+')
+    warn "Pacchetto python${PY_SHORT}-venv mancante. Lo installo..."
+    apt-get install -y "python${PY_SHORT}-venv" >/dev/null 2>&1
+    if "$PYTHON_CMD" -m venv --help &>/dev/null 2>&1; then
+        ok "python${PY_SHORT}-venv installato"
+    else
+        err "Impossibile installare python${PY_SHORT}-venv."
+        err "  sudo apt install python${PY_SHORT}-venv"
+        exit 1
+    fi
+fi
+
 POSTGRES_OK=false
 if check_command "psql"; then
     if sudo -u postgres psql -c "SELECT 1;" &>/dev/null 2>&1; then
