@@ -11,6 +11,7 @@ from agno.agent import Agent
 from agno.models.anthropic import Claude
 from agno.db.postgres import PostgresDb
 from agno.tools.mcp import MCPTools
+from mcp.client.stdio import StdioServerParameters
 
 from agent.config import settings
 from agent.tools.reminder import (
@@ -33,29 +34,29 @@ def _build_mcp_tools() -> list[MCPTools]:
 
     # Gmail MCP (mail)
     if settings.GOOGLE_CLIENT_ID:
+        google_env = {
+            "GOOGLE_CLIENT_ID": settings.GOOGLE_CLIENT_ID,
+            "GOOGLE_CLIENT_SECRET": settings.GOOGLE_CLIENT_SECRET,
+            "GOOGLE_REFRESH_TOKEN": settings.GOOGLE_REFRESH_TOKEN,
+        }
         mcp_tools.append(
             MCPTools(
-                command="npx",
-                args=["-y", "@anthropic/gmail-mcp-server"],
-                env={
-                    "GOOGLE_CLIENT_ID": settings.GOOGLE_CLIENT_ID,
-                    "GOOGLE_CLIENT_SECRET": settings.GOOGLE_CLIENT_SECRET,
-                    "GOOGLE_REFRESH_TOKEN": settings.GOOGLE_REFRESH_TOKEN,
-                },
+                server_params=StdioServerParameters(
+                    command="npx",
+                    args=["-y", "@anthropic/gmail-mcp-server"],
+                    env=google_env,
+                )
             )
         )
 
-    # Google Calendar MCP
-    if settings.GOOGLE_CLIENT_ID:
+        # Google Calendar MCP
         mcp_tools.append(
             MCPTools(
-                command="npx",
-                args=["-y", "@anthropic/google-calendar-mcp-server"],
-                env={
-                    "GOOGLE_CLIENT_ID": settings.GOOGLE_CLIENT_ID,
-                    "GOOGLE_CLIENT_SECRET": settings.GOOGLE_CLIENT_SECRET,
-                    "GOOGLE_REFRESH_TOKEN": settings.GOOGLE_REFRESH_TOKEN,
-                },
+                server_params=StdioServerParameters(
+                    command="npx",
+                    args=["-y", "@anthropic/google-calendar-mcp-server"],
+                    env=google_env,
+                )
             )
         )
 
@@ -65,7 +66,7 @@ def _build_mcp_tools() -> list[MCPTools]:
             MCPTools(
                 url="https://mcp.supermemory.ai/mcp",
                 transport="streamable-http",
-                headers={"Authorization": f"Bearer {settings.SUPERMEMORY_API_KEY}"},
+                header_provider=lambda: {"Authorization": f"Bearer {settings.SUPERMEMORY_API_KEY}"},
             )
         )
 
@@ -73,15 +74,17 @@ def _build_mcp_tools() -> list[MCPTools]:
     if settings.MS365_CLIENT_ID:
         mcp_tools.append(
             MCPTools(
-                command="npx",
-                args=[
-                    "-y", "@softeria/ms-365-mcp-server",
-                    "--preset", "email,calendar,contacts",
-                ],
-                env={
-                    "MS365_MCP_CLIENT_ID": settings.MS365_CLIENT_ID,
-                    "MS365_MCP_TENANT_ID": settings.MS365_TENANT_ID,
-                },
+                server_params=StdioServerParameters(
+                    command="npx",
+                    args=[
+                        "-y", "@softeria/ms-365-mcp-server",
+                        "--preset", "email,calendar,contacts",
+                    ],
+                    env={
+                        "MS365_MCP_CLIENT_ID": settings.MS365_CLIENT_ID,
+                        "MS365_MCP_TENANT_ID": settings.MS365_TENANT_ID,
+                    },
+                )
             )
         )
 
@@ -89,9 +92,11 @@ def _build_mcp_tools() -> list[MCPTools]:
     if settings.TAVILY_API_KEY:
         mcp_tools.append(
             MCPTools(
-                command="npx",
-                args=["-y", "@tavily/mcp-server"],
-                env={"TAVILY_API_KEY": settings.TAVILY_API_KEY},
+                server_params=StdioServerParameters(
+                    command="npx",
+                    args=["-y", "@tavily/mcp-server"],
+                    env={"TAVILY_API_KEY": settings.TAVILY_API_KEY},
+                )
             )
         )
 

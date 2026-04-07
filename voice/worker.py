@@ -10,12 +10,12 @@ Gestisce:
 
 from __future__ import annotations
 
-import asyncio
 import logging
-from typing import AsyncIterator
+import uuid
 
 from livekit.agents import AutoSubscribe, JobContext, WorkerOptions, cli
-from livekit.agents.llm import LLM, ChatContext, ChatChunk, Choice, ChoiceDelta
+from livekit.agents.llm import LLM, LLMStream, ChatContext, ChatChunk, ChoiceDelta
+from livekit.agents.llm.llm import APIConnectOptions, Tool
 from livekit.agents.voice import AgentSession
 from livekit.plugins import deepgram, elevenlabs, silero
 
@@ -27,46 +27,43 @@ logger = logging.getLogger(__name__)
 _initialized = False
 
 
-class KiraLLM(LLM):
-    """Custom LLM adapter che usa il pipeline Kira (routing + agente Agno)."""
-
-    async def chat(self, *, chat_ctx: ChatContext, **kwargs) -> "KiraChatStream":
-        # Estrai l'ultimo messaggio utente dal contesto
-        last_message = ""
-        for msg in reversed(chat_ctx.messages):
-            if msg.role == "user" and msg.content:
-                last_message = msg.content
-                break
-
-        return KiraChatStream(last_message)
-
-
-class KiraChatStream:
+class KiraLLMStream(LLMStream):
     """Stream di risposta che wrappa il pipeline Kira."""
 
-    def __init__(self, user_message: str):
-        self._user_message = user_message
-        self._task = None
+    def __init__(self, *, llm: LLM, chat_ctx: ChatContext, conn_options: APIConnectOptions):
+        super().__init__(llm, chat_ctx=chat_ctx, tools=[], conn_options=conn_options)
+        self._user_message = ""
+        for msg in reversed(chat_ctx.messages):
+            if msg.role == "user" and msg.content:
+                self._user_message = msg.content if isinstance(msg.content, str) else str(msg.content)
+                break
 
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, *args):
-        pass
-
-    async def __aiter__(self) -> AsyncIterator[ChatChunk]:
+    async def _run(self) -> None:
         try:
             response = await handle_request(self._user_message, user_id="alessandro")
         except Exception:
             logger.exception("Errore nel processing LLM")
             response = "Mi dispiace, ho avuto un problema. Puoi ripetere?"
 
-        yield ChatChunk(
-            choices=[Choice(delta=ChoiceDelta(content=response, role="assistant"))]
+        chunk = ChatChunk(
+            id=str(uuid.uuid4()),
+            delta=ChoiceDelta(content=response, role="assistant"),
         )
+        self._event_ch.send_nowait(chunk)
 
-    async def aclose(self):
-        pass
+
+class KiraLLM(LLM):
+    """Custom LLM adapter che usa il pipeline Kira (routing + agente Agno)."""
+
+    def chat(
+        self,
+        *,
+        chat_ctx: ChatContext,
+        tools: list[Tool] | None = None,
+        conn_options: APIConnectOptions = APIConnectOptions(),
+        **kwargs,
+    ) -> KiraLLMStream:
+        return KiraLLMStream(llm=self, chat_ctx=chat_ctx, conn_options=conn_options)
 
 
 async def entrypoint(ctx: JobContext):
