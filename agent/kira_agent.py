@@ -9,7 +9,7 @@ from pathlib import Path
 
 from agno.agent import Agent
 from agno.models.anthropic import Claude
-from agno.storage.postgres import PostgresStorage
+from agno.db.postgres import PostgresDb
 from agno.tools.mcp import MCPTools
 
 from agent.config import settings
@@ -142,8 +142,8 @@ def create_kira_agent(mcp_tools: list[MCPTools] | None = None) -> Agent:
 
     system_prompt = SYSTEM_PROMPT.read_text(encoding="utf-8")
 
-    storage = PostgresStorage(
-        table_name="kira_sessions",
+    db = PostgresDb(
+        session_table="kira_sessions",
         db_url=settings.db_url,
     )
 
@@ -153,7 +153,7 @@ def create_kira_agent(mcp_tools: list[MCPTools] | None = None) -> Agent:
         description="Kira — Assistente personale di Alessandro Cimino",
         instructions=system_prompt,
         tools=[*mcp_tools, *_build_custom_tools()],
-        storage=storage,
+        db=db,
         add_history_to_context=True,
         num_history_runs=10,
         markdown=True,
