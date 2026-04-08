@@ -100,7 +100,7 @@ async def main():
         from agent.health.server import start_health_server
 
         health_runner = await start_health_server(port=8080)
-    except Exception:
+    except BaseException:
         logger.warning("Health check server non avviato", exc_info=True)
 
     # Mantieni il processo attivo

@@ -34,7 +34,7 @@ class ClassificationResult:
 # --- Pattern euristici ---
 
 FAST_PATTERNS = [
-    r"^(ciao|buongiorno|buonasera|hey|ok|grazie|perfetto|va bene|sì|no)[\s!?.]*$",
+    r"^(ciao|buongiorno|buonasera|hey|ok|grazie|perfetto|va bene|sì|no)(\s+\w+)?[\s!?.]*$",
     r"^(conferm|ok|fatto|ricevuto|capito)",
     r"che ore sono|che giorno è",
 ]

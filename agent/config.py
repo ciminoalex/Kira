@@ -4,6 +4,17 @@ Legge variabili da .env o environment.
 """
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from dotenv import dotenv_values
+
+
+def _load_env_overrides() -> dict:
+    """
+    Carica le variabili dal .env che hanno un valore non vuoto.
+    Serve a sovrascrivere variabili di sistema vuote (es. ANTHROPIC_API_KEY
+    impostata come stringa vuota da Claude Desktop).
+    """
+    env_vals = dotenv_values(".env")
+    return {k: v for k, v in env_vals.items() if v}
 
 
 class Settings(BaseSettings):
@@ -12,6 +23,12 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
     )
+
+    def __init__(self, **kwargs):
+        # Valori dal .env con priorità sulle variabili d'ambiente vuote
+        overrides = _load_env_overrides()
+        merged = {**overrides, **kwargs}
+        super().__init__(**merged)
 
     # LLM
     ANTHROPIC_API_KEY: str = ""

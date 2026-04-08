@@ -29,50 +29,80 @@ logger = logging.getLogger(__name__)
 SYSTEM_PROMPT = Path(__file__).parent / "prompts" / "system_prompt.md"
 
 
+def _is_command_available(cmd: str) -> bool:
+    """Verifica se un comando è disponibile nel PATH."""
+    import shutil
+    return shutil.which(cmd) is not None
+
+
 def _build_mcp_tools() -> list[MCPTools]:
     """Costruisce la lista di MCP tool servers."""
     mcp_tools: list[MCPTools] = []
 
+    has_npx = _is_command_available("npx")
+    if not has_npx:
+        logger.warning("npx non trovato nel PATH — i server MCP stdio (Google, Tavily, MS365) saranno disabilitati")
+
     # Gmail MCP (mail) + Google Calendar MCP
     if settings.GOOGLE_CLIENT_ID and settings.GOOGLE_CLIENT_SECRET and settings.GOOGLE_REFRESH_TOKEN:
-        google_env = {
-            "GOOGLE_CLIENT_ID": settings.GOOGLE_CLIENT_ID,
-            "GOOGLE_CLIENT_SECRET": settings.GOOGLE_CLIENT_SECRET,
-            "GOOGLE_REFRESH_TOKEN": settings.GOOGLE_REFRESH_TOKEN,
-        }
-        mcp_tools.append(
-            MCPTools(
-                server_params=StdioServerParameters(
-                    command="npx",
-                    args=["-y", "@anthropic/gmail-mcp-server"],
-                    env=google_env,
+        if has_npx:
+            google_env = {
+                "GOOGLE_CLIENT_ID": settings.GOOGLE_CLIENT_ID,
+                "GOOGLE_CLIENT_SECRET": settings.GOOGLE_CLIENT_SECRET,
+                "GOOGLE_REFRESH_TOKEN": settings.GOOGLE_REFRESH_TOKEN,
+            }
+            mcp_tools.append(
+                MCPTools(
+                    server_params=StdioServerParameters(
+                        command="npx",
+                        args=["-y", "@anthropic/gmail-mcp-server"],
+                        env=google_env,
+                    )
                 )
             )
-        )
-        mcp_tools.append(
-            MCPTools(
-                server_params=StdioServerParameters(
-                    command="npx",
-                    args=["-y", "@anthropic/google-calendar-mcp-server"],
-                    env=google_env,
+            mcp_tools.append(
+                MCPTools(
+                    server_params=StdioServerParameters(
+                        command="npx",
+                        args=["-y", "@anthropic/google-calendar-mcp-server"],
+                        env=google_env,
+                    )
                 )
             )
-        )
     elif settings.GOOGLE_CLIENT_ID:
         logger.warning("Google MCP: CLIENT_ID presente ma mancano CLIENT_SECRET o REFRESH_TOKEN, skip")
 
     # Supermemory MCP (memory, recall, context)
     if settings.SUPERMEMORY_API_KEY:
-        mcp_tools.append(
-            MCPTools(
-                url="https://mcp.supermemory.ai/mcp",
-                transport="streamable-http",
-                header_provider=lambda: {"Authorization": f"Bearer {settings.SUPERMEMORY_API_KEY}"},
+        import httpx as _httpx
+        try:
+            # Pre-check: Supermemory usa streamable-http, testa con un POST
+            r = _httpx.post(
+                "https://mcp.supermemory.ai/mcp",
+                headers={
+                    "Authorization": f"Bearer {settings.SUPERMEMORY_API_KEY}",
+                    "Content-Type": "application/json",
+                },
+                content='{"jsonrpc":"2.0","method":"initialize","id":1,"params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"kira","version":"1.0"}}}',
+                timeout=10,
             )
-        )
+            if r.status_code in (401, 403, 404):
+                logger.warning("Supermemory MCP: endpoint non disponibile (%d), skip", r.status_code)
+            elif r.status_code >= 500:
+                logger.warning("Supermemory MCP: server error (%d), skip", r.status_code)
+            else:
+                mcp_tools.append(
+                    MCPTools(
+                        url="https://mcp.supermemory.ai/mcp",
+                        transport="streamable-http",
+                        header_provider=lambda: {"Authorization": f"Bearer {settings.SUPERMEMORY_API_KEY}"},
+                    )
+                )
+        except Exception as e:
+            logger.warning("Supermemory MCP: non raggiungibile (%s), skip", e)
 
     # Microsoft 365 MCP (Outlook mail + calendar + contacts)
-    if settings.MS365_CLIENT_ID:
+    if settings.MS365_CLIENT_ID and has_npx:
         mcp_tools.append(
             MCPTools(
                 server_params=StdioServerParameters(
@@ -90,7 +120,7 @@ def _build_mcp_tools() -> list[MCPTools]:
         )
 
     # Web Search (Tavily)
-    if settings.TAVILY_API_KEY:
+    if settings.TAVILY_API_KEY and has_npx:
         mcp_tools.append(
             MCPTools(
                 server_params=StdioServerParameters(
@@ -155,7 +185,7 @@ def create_kira_agent(mcp_tools: list[MCPTools] | None = None) -> Agent:
 
     agent = Agent(
         name="Kira",
-        model=Claude(id="claude-sonnet-4-6"),
+        model=Claude(id="claude-sonnet-4-6", api_key=settings.ANTHROPIC_API_KEY),
         description="Kira — Assistente personale di Alessandro Cimino",
         instructions=system_prompt,
         tools=[*mcp_tools, *_build_custom_tools()],
@@ -180,13 +210,28 @@ async def start_agent_with_mcp() -> tuple[Agent, list[MCPTools]]:
     mcp_tools = _build_mcp_tools()
     connected_tools: list[MCPTools] = []
 
+    async def _safe_connect(tool: MCPTools) -> bool:
+        try:
+            await tool.connect()
+            return True
+        except BaseException as e:
+            logger.warning("MCP non disponibile (%s), skip: %s", type(e).__name__, tool)
+            return False
+
     for tool_server in mcp_tools:
         try:
-            await asyncio.wait_for(tool_server.connect(), timeout=15)
-            connected_tools.append(tool_server)
-            logger.info("MCP connesso: %s", tool_server)
+            task = asyncio.create_task(_safe_connect(tool_server))
+            success = await asyncio.wait_for(task, timeout=15)
+            if success:
+                connected_tools.append(tool_server)
+                logger.info("MCP connesso: %s", tool_server)
+        except (asyncio.TimeoutError, asyncio.CancelledError) as e:
+            logger.warning("MCP timeout/cancelled (%s), skip: %s", type(e).__name__, tool_server)
         except BaseException as e:
-            logger.warning("MCP non disponibile (%s), skip: %s", type(e).__name__, tool_server)
+            logger.warning("MCP errore (%s), skip: %s", type(e).__name__, tool_server)
+
+    # Lascia che eventuali cancel scope residui si risolvano
+    await asyncio.sleep(0.1)
 
     agent = create_kira_agent(mcp_tools=connected_tools)
     return agent, connected_tools
